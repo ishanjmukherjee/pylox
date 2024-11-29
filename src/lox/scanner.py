@@ -100,7 +100,7 @@ class Scanner:
             case '"':
                 self._string()
             case _:
-                if c.isdigit():
+                if "0" <= c <= "9":
                     self._number()
                 elif c.isalpha() or c == "_":
                     self._identifier()
@@ -129,15 +129,15 @@ class Scanner:
         self._add_token(TokenType.STRING, value)
 
     def _number(self) -> None:
-        while self._peek().isdigit():
+        while "0" <= self._peek() <= "9":
             self._advance()
 
         # Look for a fractional part
-        if self._peek() == "." and self._peek_next().isdigit():
+        if self._peek() == "." and "0" <= self._peek_next() <= "9":
             # Consume the '.'
             self._advance()
 
-            while self._peek().isdigit():
+            while "0" <= self._peek() <= "9":
                 self._advance()
 
         value = float(self.source[self.start : self.current])
