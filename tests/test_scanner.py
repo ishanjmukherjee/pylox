@@ -35,6 +35,7 @@ class TestScanner:
         for token, expected_type in zip(tokens, expected_types, strict=False):
             assert token.type == expected_type
 
+    # Exclude surrogate code points
     @given(st.text(alphabet=st.characters(blacklist_categories=("Cs",))))
     def test_scanner_handles_arbitrary_input(self, source: str) -> None:
         """Property: Scanner should never crash on valid Unicode input."""

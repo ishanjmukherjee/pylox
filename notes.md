@@ -132,7 +132,7 @@ Quite funny:
 > notation for specifying ALGOL 58 and came up with [**Backus-Naur
 > form**](https://en.wikipedia.org/wiki/Backus%E2%80%93Naur_form) (**BNF**).
 
-### The Visitor pattern
+### The Visitor pattern: an introduction
 
 Here's a simple demonstration of the Visitor pattern using the example of a zoo
 and different animals. Imagine a bunch of `Animal` subclasses:
@@ -292,3 +292,377 @@ The Visitor pattern is great when:
   and multiplication aren't fundamental to what a token is).
 
 This makes the Visitor pattern a natural fit for interpreter design.
+
+### The Visitor pattern for interpreter design
+
+Let's start with how to represent code in memory using Abstract Syntax Trees
+(ASTs):
+
+```python
+# This represents different kinds of expressions in the language
+class Expr:
+    pass
+
+# A literal is a bare value like 123 or "abc"
+class Literal(Expr):
+    def __init__(self, value):
+        self.value = value
+
+# A binary is two things with an operator between them, like 1 + 2
+class Binary(Expr):
+    def __init__(self, left, operator, right):
+        self.left = left          # The operand on the left
+        self.operator = operator  # The operator
+        self.right = right        # The operand on the right
+```
+
+So, to represent `1 + 2` in memory, one would write:
+
+```python
+expr = Binary(
+    left = Literal(1),
+    operator = "+",
+    right = Literal(2)
+)
+```
+
+Now that we can represent expressions like `1 + 2` in memory, we need a way to
+do things with them -- like print or evaluate them. The naive way to do this is
+to add methods to each expression class:
+
+```python
+class Expr:
+    pass
+
+class Literal(Expr):
+    def __init__(self, value):
+        self.value = value
+
+    def print(self):
+        return str(self.value)
+
+    def evaluate(self):
+        return self.value
+
+class Binary(Expr):
+    def __init__(self, left, operator, right):
+        self.left = left
+        self.operator = operator
+        self.right = right
+
+    def print(self):
+        return f"({self.operator} {self.left.print()} {self.right.print()}"
+
+    def evaluate(self):
+        left_val = self.left.evaluate()
+        right_val = self.right.evaluate()
+        match self.operator:
+            case "+":
+                return left_val + right_val
+            # ... other operators
+```
+
+Usage would look like:
+
+```python
+expr = Binary(Literal(1), "+", Literal(2))
+print(expr.print())     # prints "(+ 1 2)"
+print(expr.evaluate())  # prints "3"
+```
+
+The problem is that if we want to do something new with expressions, like type
+checking or optimization, we have to add a new method to _every_ expressions
+class. This gets messy fast:
+
+- All the code for one operation is spread across many files -- to make a
+  change, you need to revisit _all_ the files and hope you don't forget one.
+- If you want to share code between similar operations, it's awkward.
+
+Nystrom pictures this as a table:
+
+![](assets/expression-problem-table.png)
+
+Object-oriented languages like Java or Python make adding a new row easy:
+
+![](assets/expression-problem-new-class.png)
+
+Functional languages in the ML family make adding a new function easy through
+"_pattern matching_--sort of a type-based switch on steroids":
+
+![](assets/expression-problem-new-function.png)
+
+No programming language style makes it easy to add _both_ rows and columns to
+this table. This is called the expression problem because people first landed on
+it when trying to figure out the best way to model expression syntax tree nodes
+in a compiler. The Visitor pattern is a handy workaround for this problem.
+
+Here is what printing and evaluation look like following the Visitor pattern:
+
+```python
+class Expr:
+    pass
+
+class Literal(Expr):
+    def __init__(self, value):
+        self.value = value
+
+    def accept(self, visitor):
+        return visitor.visit_literal(self)
+
+class Binary(Expr):
+    def __init__(self, left, operator, right):
+        self.left = left
+        self.operator = operator
+        self.right = right
+
+    def accept(self, visitor):
+        return visitor.visit_binary(self)
+
+class PrintingVisitor:
+    def visit_literal(self, expr: Literal):
+        return str(expr.value)
+
+    def visit_binary(self, expr: Binary):
+        return f"({expr.operator} {expr.left.accept(self)} {expr.right.accept(self)}"
+
+class EvaluationVisitor:
+    def visit_literal(self, expr: Literal):
+        return expr.value
+
+    def visit_binary(self, expr: Binary):
+        left_val = expr.left.accept(self)
+        right_val = right.left.accept(self)
+        match expr.operator:
+            case "+":
+                return expr.left + expr.right
+            # ... other operators
+```
+
+### Abstract base classes
+
+We'd like to create a "contract" that forces every class which inherits from
+`Expr` to implement the `accept` method, and every class which inherits from
+`ExprVisitor` to implement the `visit_literal`, `visit_binary`, etc methods.
+
+So, for example, if we forget to implement `accept` for the `Literal` class:
+
+```python
+from abc import ABC, abstractmethod  # ABC = Abstract Base Class
+
+class Expr(ABC):
+    # Marks a method as mandatory to be implemented by subclasses
+    @abstractmethod
+    def accept(self, visitor):
+        pass
+
+    # Regular method, not abstract: subclasses can override this if they want
+    # to, but they don't have to
+    def say_hello(self):
+        print("Hello!")
+
+# This will raise an error because Literal doesn't implement accept
+class Literal(Expr):
+    def __init__(self, value):
+        self.value = value
+
+# This is correct because it implements accept, even though it doesn't implement
+# say_hello
+class Binary(Expr):
+    def __init__(self, left, operator, right):
+        self.left = left
+        self.operator = operator
+        self.right = right
+
+    def accept(self, visitor):
+        return visitor.visit_binary(self)
+```
+
+If you tried to create a `Literal(123)`, Python would raise an error like
+
+```zsh
+TypeError: Can't instantiate abstract class Literal with abstract method accept
+```
+
+This helps catch errors early: if you forget to implement `accept` in any
+expression class, Python will let you know right away instead of failing later
+when you try to use the visitor pattern.
+
+We can set up similar abstract methods for the base `ExprVisitor` class:
+
+```python
+class ExprVisitor(ABC):
+    @abstractmethod
+    def visit_literal(self, expr: 'Literal'):
+        pass
+
+    @abstractmethod
+    def visit_binary(self, expr: 'Binary'):
+        pass
+```
+
+### An intro to typing in Python
+
+Let's start with the very basics of Python's typing system:
+
+The simplest type hints aren't enforced during runtime. They're closer to
+documentation notes than a real typing system:
+
+```python
+name: str = "Alice"
+age: int = 30
+height: float = 1.75
+is_married: bool = True
+
+def greet(name: str) > str:
+    return f"Hello, {name}!"
+
+names: List[str] = ["Alice", "Bob", "Charlie"]
+
+ages: Dict[str, int] = {
+    "Alice": 30,
+    "Bob": 17,
+    "Charlie": 60
+}
+
+# Any means "could be anything"
+def process_data(data: Any) -> str:
+    return str(data)
+
+# These all work because data is Any
+print(process_data(123.456))
+print(process_data("Hello"))
+print(process_data([1, 2, 3]))
+```
+
+Type variables are like placeholders for types:
+
+```python
+from typing import TypeVar
+
+# The string passed to TypeVar must match the variable name, i.e., this won't
+# work:
+# Right = TypeVar("Wrong")
+T = TypeVar('T')
+
+def first_elem(lst: List[T]) -> T:
+    return lst[0]
+
+# Works with any type
+first_elem([1, 2, 3])        # T becomes int
+first_elem(["a", "b", "b"])  # T becomes str
+```
+
+`TypeVar`s, too, are not enforced at runtime by default in Python. They're
+primarily used for static type checking tools like mypy, documentation, and IDE
+autocomplete and error detection.
+
+So, this usage will work:
+
+```python
+# This of course works: it follows the type hints
+result1 = first_elem([1, 2, 3])
+
+# This works too, though we're mixing types
+result2 = first_elem([1, "hello", 3.14])
+
+# Even this works, though it clearly violates the List[] type hint
+result2 = first_elem(42)
+```
+
+This is why Python is said to have [gradual
+typing](https://en.wikipedia.org/wiki/Gradual_typing) (a system supposedly
+[invented](https://wphomes.soic.indiana.edu/jsiek/what-is-gradual-typing/) by
+Jeremy Siek with Walid Taha): you can add type hints gradually and use tools to
+check them, but the runtime behavior remains dynamic.
+
+### Generics in Python
+
+Generics let us create classes that work with different types:
+
+```python
+from typing import Generic, TypeVar
+
+T = TypeVar('T')
+
+class Container(Generic[T]):
+    def __init__(self, item: T):
+        self.item = item
+
+    def get(self) -> T:
+        return self.item
+
+# Type-safe containers
+int_container = Container[int](42)
+str_container = Container[str]("hello")
+
+# Type checker would warn about these
+x: str = int_container.get()  # Error: int is not str
+int_container.item = "wrong"  # Error: str is not int
+```
+
+You can also define multiple type variables, like `Generic[K, V]`:
+
+```python
+K = TypeVar('K')
+V = TypeVar('V')
+
+class Pair(Generic[K, V]):
+    def __init__(self, key: K, value: V):
+        self.key = key
+        self.value = value
+
+    def get_key(self) -> K:
+        return self.key
+
+    def get_value(self) -> V:
+        return self.value
+
+coord = Pair[str, Tuple[float, float]]("x", (23.5, 14.5))
+```
+
+The power of generics is that they let us write code that works with _any_ type
+while maintaining type safety. In our Visitor pattern:
+
+```python
+R = TypeVar('R')
+
+class ExprVisitor(Generic[R]):
+    def visit_number(self, value: float) -> R:
+        raise NotImplementedError
+
+# A visitor that evaluates to numbers
+class Evaluator(ExprVisitor[float]):
+    def visit_number(self, value: float) -> float:
+        return value
+
+# A visitor that converts to strings
+class Printer(ExprVisitor[str]):
+    def visit_number(self, value: float) -> str:
+        return str(value)
+
+class Validator(ExprVisitor[bool]):
+    def visit_number(self, value: float) -> bool:
+        return True
+```
+
+An involved example that combines generics with abstract base classes:
+
+```python
+from abc import ABC, abstractmethod
+from typing import TypeVar, Generic
+
+R = TypeVar('R')
+
+class Doubler(Generic[R], ABC):
+    @abstractmethod
+    def double(self, x: int) -> R:
+        pass
+
+class IntDoubler(Doubler[int]):
+    def double(self, x: int) -> int:
+        return x * 2
+
+class StrDoubler(Doubler[str]):
+    def double(self, x: int) -> str:
+        return str(x) * 2
+```

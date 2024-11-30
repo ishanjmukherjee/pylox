@@ -4,7 +4,9 @@ from typing import Any
 from lox.token_type import TokenType
 
 
-@dataclass
+# @dataclass automatically generates __init__ for initialization and __eq__ for
+# equality comparison. It also lets you make Tokens immutable via frozen=True.
+@dataclass(frozen=True)
 class Token:
     """A token in the Lox language.
 
