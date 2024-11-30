@@ -11,21 +11,21 @@ These are the Lox programs to aim for:
 
 Resources on machine learning domain-specific languages from my advisor:
 
-Halide, EDSLs (Embedded DSLs). Check out conferences rather than papers: ASPLOS,
-NeurIPS, PLDI, OOPSLA, conferences on fuctional programming languages. ML
-languages are named differently from just "ML languages": check out languages
+- Halide, EDSLs (Embedded DSLs). Check out conferences rather than papers:
+ASPLOS, NeurIPS, PLDI, OOPSLA, conferences on fuctional programming languages.
+ML languages are named differently from just "ML languages": check out languages
 for accelerators/NLP/vision, domains
-
-The Triton language is worth checking out.
-
-Read Bril, on embedded DSLs, by Adrian Sampson. Check out all the practical work
-done with EDSLs.
-
-The recommended text on programming languages is _Modern Compiler
-Implementation_. From digging online, it seems the book's ML version is
-canonical and the Java and C versions are ports.
+- The Triton language is worth checking out.
+- Read Bril, on embedded DSLs, by Adrian Sampson. Check out all the practical
+work done with EDSLs.
+- The recommended text on programming languages is _Modern Compiler
+Implementation_.
+  - From digging online, it seems the book's ML version is canonical and the
+Java and C versions are ports.
 
 ## Chapter 4: Scanning
+
+### Lexemes
 
 Each individually meaningfully "blob" of characters is a _lexeme_. For example,
 in the line
@@ -38,7 +38,7 @@ the lexemes are `var`, `language`, `=`, `"lox"` and `;`.
 
 ---
 
-**Line information in tokens for error reporting**
+### Line information in tokens for error reporting
 
 Tokens need to store information about the position of the lexeme in the source
 code to display to the user when there's a syntax error. The straightforward way
@@ -57,7 +57,7 @@ zero-computational-overhead in storing location could win out, amortized.
 
 ---
 
-**What the scanner does, in Nystromic vividness**
+### What the scanner does, in Nystromic vividness
 
 > The core of the scanner is a loop. Starting at the first character of the
 > source code, the scanner figures out what lexeme the character belongs to, and
@@ -70,7 +70,7 @@ zero-computational-overhead in storing location could win out, amortized.
 
 ---
 
-**Regex and lexical grammars**
+### Regex and lexical grammars
 
 Regexing during the scanning process seems to have surprising theoretical CS
 depth:
@@ -99,18 +99,18 @@ I need to chase down these rabbit holes at some point.
 
 ---
 
-**Peeking lookahead**
+### Peeking lookahead
 
 An interesting design choice:
 
 > I could have made `peek()` take a parameter for the number of characters ahead
-> to look instead of defining two functions, but that would allow *arbitrarily*
+> to look instead of defining two functions, but that would allow _arbitrarily_
 > far lookahead. Providing these two functions makes it clearer to a reader of
 > the code that our scanner looks ahead at most two characters.
 
 ---
 
-**Newlines vs ;**
+### Newlines vs `;`
 
 How Python handles newlines is interesting:
 
@@ -122,10 +122,173 @@ How Python handles newlines is interesting:
 
 ## Chapter 5: Representing Code
 
+### The evolution of syntactical grammars
+
 Quite funny:
 
 > People have been trying to crystallize grammar all the way back to
-> Pāṇini's *Ashtadhyayi*, which codified Sanskrit grammar a mere couple thousand
+> Pāṇini's _Ashtadhyayi_, which codified Sanskrit grammar a mere couple thousand
 > years ago. Not much progress happened until John Backus and company needed a
 > notation for specifying ALGOL 58 and came up with [**Backus-Naur
 > form**](https://en.wikipedia.org/wiki/Backus%E2%80%93Naur_form) (**BNF**).
+
+### The Visitor pattern
+
+Here's a simple demonstration of the Visitor pattern using the example of a zoo
+and different animals. Imagine a bunch of `Animal` subclasses:
+
+```python
+class Lion(Animal):
+    def roar(self):
+        return "ROAR!"
+
+    def feed(self):
+        return "Feeding the lion some meat"
+
+    def make_sound(self):
+        return self.roar()
+
+    # Later, if we need to add health check...
+    def health_check(self):
+        return "Checking lion's teeth and claws"
+
+    # And if we need to add playtime...
+    def play_time(self):
+        return "Playing with lion using big ball"
+
+class Elephant(Animal):
+    def trumpet(self):
+        return "PAWOO!"
+
+    def feed(self):
+        return "Feeding the elephant some leaves"
+
+    def make_sound(self):
+        return self.trumpet()
+
+    def health_check(self):
+        return "Checking elephant's trunk and tusks"
+
+    def play_time(self):
+        return "Playing with elephant using water spray"
+
+class Monkey(Animal):
+    def screech(self):
+        return "OOH OOH AH AH!"
+
+    def feed(self):
+        return "Feeding the monkey some bananas"
+
+    def make_sound(self):
+        return self.screech()
+
+    def health_check(self):
+        return "Checking monkey's agility and reflexes"
+
+    def play_time(self):
+        return "Playing with monkey using rope swings"
+```
+
+Usage would look like:
+
+```python
+# Create animals
+lion = Lion()
+elephant = Elephant()
+monkey = Monkey()
+
+# Do operations
+print(lion.feed())          # "Feeding the lion some meat"
+print(elephant.feed())      # "Feeding the elephant some leaves"
+print(monkey.make_sound())  # "OOH OOH AH AH!"
+```
+
+The problems with this approach:
+
+- Every time you want to add a new operation (like health_check or play_time),
+  you have to modify _every_ animal class. With 3 animals it's manageable, but
+  with 20 animals it becomes a maintenance nightmare.
+- Related behaviors are scattered across different classes. All feeding logic is
+  split between `Lion`, `Elephant`, and `Monkey` classes instead of being
+  centralized in one place.
+  - If you have a bug in the feeding logic, you have to fix it in multiple
+    places.
+- The animal classes become bloated with many methods that aren't core to what
+  an animal is. An animal naturally makes sounds, but feeding and health checks
+  are really zookeeper operations being forced into the animal class.
+
+Compare this to the Visitor pattern where adding a new operation just means
+creating a new visitor class:
+
+```python
+# Base classes
+class Animal:
+    def accept(self, visitor):
+        visitor.visit(self)
+
+class AnimalVisitor:
+    def visit(self, animal):
+        # This will be overridden by specific visitors
+        pass
+
+# Some concrete animals
+class Lion(Animal):
+    def roar(self):
+        return "ROAR!"
+
+class Elephant(Animal):
+    def trumpet(self):
+        return "PAWOO!"
+
+class Monkey(Animal):
+    def screech(self):
+        return "OOH OOH AH AH!"
+
+# Some concrete visitors
+class PlayTimeVisitor(AnimalVisitor):
+    def visit(self, animal):
+        if isinstance(animal, Lion):
+            return "Playing with lion using big ball"
+        elif isinstance(animal, Elephant):
+            return "Playing with elephant using water spray"
+        elif isinstance(animal, Monkey):
+            return "Playing with monkey using rope swings"
+
+class FeedingVisitor(AnimalVisitor):
+    def visit(self, animal):
+        if isinstance(animal, Lion):
+            return "Feeding the lion some meat"
+        elif isinstance(animal, Elephant):
+            return "Feeding the elephant some leaves"
+        elif isinstance(animal, Monkey):
+            return "Feeding the monkey some bananas"
+
+class SoundVisitor(AnimalVisitor):
+    def visit(self, animal):
+        if isinstance(animal, Lion):
+            return animal.roar()
+        elif isinstance(animal, Elephant):
+            return animal.trumpet()
+        elif isinstance(animal, Monkey):
+            return animal.screech()
+```
+
+Usage would look like:
+
+```python
+lion = Lion()
+elephant = Elephant()
+monkey = Monkey()
+
+feeding_visitor = FeedingVisitor()
+print(feeding_visitor.visit(lion))  # "Feeding the lion some meat"
+```
+
+The Visitor pattern is great when:
+
+- you expect to add _operations_, not new _classes_ (here, animals), and
+- the operations aren't fundamental to the class itself (feeding, health checks,
+  and playtime aren't fundamental to what an animal is; addition/concatentation
+  and multiplication aren't fundamental to what a token is).
+
+This makes the Visitor pattern a natural fit for interpreter design.
