@@ -666,3 +666,89 @@ class StrDoubler(Doubler[str]):
     def double(self, x: int) -> str:
         return str(x) * 2
 ```
+
+### Testing the AST generator
+
+I ran into a subtle Hypothesis bug while testing my AST printer (this happens a
+lot (maybe too much) -- I find myself debugging Hypothesis more often than my
+implementation when a test is failing).
+
+Specifically, I was failing the last `assert` in this function, which checks
+that the number of left-parens should equal the number of right-parens in any
+pretty-printed string:
+
+```python
+def test_printer_output_format(self, expr):
+        """Test that printer output follows expected format."""
+        printer = AstPrinter()
+        result = printer.print(expr)
+
+        # Basic structural checks
+        assert isinstance(result, str)
+        assert len(result) > 0
+
+        # Check parentheses matching
+        assert result.count("(") == result.count(")")
+```
+
+The offending expression:
+
+```lisp
+(- (group nil) (group )))
+```
+
+What's going on with that? Why is there a space after `group`? Is there a
+problem with the `parenthesize` method? Is the Hypothesis strategy generating
+expressions correctly?
+
+Is this even worth bothering with? I tried to pretty-print
+
+```python
+expr = Binary(
+        Grouping(Literal(None)),
+        Token(TokenType.MINUS, "-", None, 1),
+        Grouping(Literal(None)),
+    )
+```
+
+and it gave me exactly what you'd expect:
+
+```lisp
+(- (group nil) (group nil))
+```
+
+Should I just change that last assert to
+
+```python
+        assert not result.contains("(") or result.endswith(")")
+```
+
+and call it a day?
+
+Turned out that that Hypothesis is generating an extra right paren as a literal
+and grouping it. So, `(group ))` is really `())`, i.e., the character `)` inside
+a group! The (ugly) fix was to blacklist parens from the strategy for generating
+literals, a la below. This way, Hypothesis won't try to include parens as
+literals in the expressions it generates.
+
+```python
+@st.composite
+def literals(draw) -> Any:
+    """Generate valid literal values."""
+    return draw(
+        st.one_of(
+            st.none(),
+            st.booleans(),
+            st.floats(allow_nan=False, allow_infinity=False),
+            # min_size=1 ensures no empty strings.
+            # Blacklisting parens ensures the LPAREN == RPAREN in the structural
+            # check below doesn't mess up.
+            st.text(
+                min_size=1,
+                alphabet=st.characters(
+                    blacklist_characters={"(", ")"}, blacklist_categories=("Cs",)
+                ),
+            ),
+        )
+    )
+```
