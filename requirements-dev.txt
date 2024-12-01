@@ -1,7 +1,7 @@
 -r requirements.txt
 pytest>=8.3.3
 pytest-cov>=6.0.0
-hypothesis>=6.119.0
-ruff>=0.7.3
+hypothesis>=6.122.0
+ruff>=0.8.1
 pre-commit>=4.0.1
 hatchling>=1.26.3

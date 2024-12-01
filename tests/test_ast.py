@@ -51,7 +51,15 @@ def literals(draw) -> Any:
             st.none(),
             st.booleans(),
             st.floats(allow_nan=False, allow_infinity=False),
-            st.text(min_size=1, alphabet=st.characters(blacklist_categories=("Cs",))),
+            # min_size=1 ensures no empty strings.
+            # Blacklisting parens ensures the LPAREN == RPAREN in the structural
+            # check below doesn't mess up.
+            st.text(
+                min_size=1,
+                alphabet=st.characters(
+                    blacklist_characters={"(", ")"}, blacklist_categories=("Cs",)
+                ),
+            ),
         )
     )
 
