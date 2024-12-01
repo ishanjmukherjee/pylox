@@ -878,3 +878,18 @@ Hypothesis has motivated me to do three things:
   his [Experiences with QuickCheck](https://www.cs.tufts.edu/~nr/cs257/archive/john-hughes/quviq-testing.pdf).
 - Learn about [fuzzing](https://en.wikipedia.org/wiki/Fuzzing) and how
   Hypothesis implements/could be extended to implement it.
+
+### The importance of error handling in parsers
+
+> Don’t underestimate how important [a parser's error handling] is! In modern
+IDEs and editors, the parser is constantly reparsing code—often while the user
+is still editing it—in order to syntax highlight and support things like
+auto-complete. That means it will encounter code in incomplete, half-wrong
+states all the time.
+>
+> ...
+>
+> The days of needing to optimize your parser so that it could get through an
+> entire source file during a coffee break are over. But programmer expectations
+> have risen as quickly, if not faster. They expect their editors to reparse
+> files in milliseconds after every keystroke.
