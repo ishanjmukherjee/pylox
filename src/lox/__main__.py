@@ -1,14 +1,12 @@
-from lox.ast_printer import AstPrinter
-from lox.expr import Binary, Grouping, Literal
-from lox.token import Token
-from lox.token_type import TokenType
+from lox.parser import Parser
+from lox.scanner import Scanner
 
 if __name__ == "__main__":
     # main()
-    printer = AstPrinter()
-    expr = Binary(
-        Grouping(Literal(None)),
-        Token(TokenType.MINUS, "-", None, 1),
-        Grouping(Literal(None)),
-    )
-    print(f"Tree: {printer.print(expr)}\n")
+    source = "1 <= 2 >= 3 < 4 > 5"
+    scanner = Scanner(source)
+    tokens = scanner.scan_tokens()
+    parser = Parser(tokens)
+    expression = parser.parse()
+    print(f"Source: {source}")
+    print(f"AST: {expression}")

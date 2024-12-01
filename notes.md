@@ -1,5 +1,55 @@
 # Notes on _Crafting Interpreters_
 
+## Programming languages that change how you think
+
+It's well known that programming languages can change how you think about
+computation. I am making a list of those I would like to explore, as well as
+_how_ each one changes how you think, with lots of help from Claude:
+
+- Lisp
+  - Homoiconicity (code is data, data is code).
+  - Macros (metaprogramming) for language extension.
+- Haskell
+  - Pure functions, types as propositions, effects as types.
+  - Once you understand monads, you'll see their patterns everywhere: in Promise
+    chains in JavaScript, Optional types in Java, error handling in Rust, etc.
+- APL (and its modern descendants like J and K)
+  - Instead of thinking in loops and iterations, you think in whole-array
+    operations. The dense symbolic notation forces your brain to chunk
+    operations at a higher level.
+  - Fundamentally changes how you think about data manipulation.
+- Prolog
+  - Declarative logic programming where you specify what you want rather than
+    how to get it.
+  - You're describing a solution space rather than writing space.
+- Curry
+  - Combines Haskell's pure functional style with Prolog's logic programming.
+  - You leave parts of your program unspecified and let the language search for
+    solutions (!).
+- Forth
+  - Extremely minimal, stack-based.
+  - Forces you to think about program flow in terms of data stack manipulation.
+  - You extend the language to match your problem rather than working within
+    existing abstractions.
+- Smalltalk
+  - Everything is an object.
+  - The purer grandfather of OOP: gives deeper insights into message-passing and
+    object composition.
+  - Image-based development environment also changes how you think about
+    programming environments.
+- Rust
+  - Ownership system forces you to rethink data lifetime and sharing.
+- Factor
+  - Modern concatenative language like Forth but with modern conveniences.
+  - Programming by function composition takes on a whole new meaning when
+    everything is stack manipulation.
+- Erlang
+  - Forces you to think in terms of isolated processes and message passing.
+  - Its "let it crash" philosophy and supervisor trees offer a radically
+    different approach to reliability.
+
+## Project objectives
+
 These are the Lox programs to aim for:
 
 - For, while, if/else, arithmetic, printing
@@ -752,3 +802,79 @@ def literals(draw) -> Any:
         )
     )
 ```
+
+## Chapter 6: Parsing Expressions
+
+### Floating-point nuances
+
+I need to check out [What Every Computer Scientist Should Know About
+Floating-Point
+Arithmetic](https://docs.oracle.com/cd/E19957-01/806-3568/ncg_goldberg.html) later.
+
+### Grammar
+
+The grammar used in the book is:
+
+```zsh
+expression -> equality
+equality   -> comparison ( ( "!=" | "==" ) comparison )*
+comparison -> term ( ( ">" | ">=" | "<" | "<=" ) term )*
+term       -> factor ( ( "-" | "+" ) factor )*
+factor     -> unary ( ( "/" | "*" ) unary )*
+unary      -> ( "!" | "-" ) unary | primary
+primary    -> NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")"
+```
+
+To decode this:
+
+- The arrow `->` means "is defined as" or "can be".
+- `|` means "or".
+- `*` means "zero or more times".
+- Quoted strings like `"!="` are literal tokens
+- UPPERCASE words are token types.
+
+So,
+
+```zsh
+term -> factor ( ( "-" | "+" ) factor )*
+```
+
+means that a term starts with a factor, then optionally (because of `*`) has
+either a minus or a plus followed by another factor repeated arbitrarily many
+times. This rule would match `42`, `42 + 24`, `42 + 24 - 32 + 64 + 96`, etc.
+
+As another example,
+
+```zsh
+primary -> NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")"
+```
+
+means that a primary can be a number, a string, the word "true", the word
+"false", the word "nil", or an expression in parentheses.
+
+### Testing with Hypothesis
+
+Property-based testing with Hypothesis is extremely cool. It's a port of
+QuickCheck (written in Haskell) to Python. In essence: instead of racking his
+brains for test cases, a developer spells out properties that should hold true
+-- _hypotheses_ about his code. Hypothesis tries to falsify his assumptions.
+It's no surprise that this testing method originated in Haskell, with its famous
+type systems. Programming languages truly shape how programmers think.
+
+Because Hypothesis tests _invariants_, it finds edge cases developers would not
+have thought of. For example, somewhere in my code I was using Python's
+`c.isdigit()` method to... well, test if `c` was a digit. Turns out, the
+superscripted "²" is a digit, but `str("²")` does not work! This forced me to
+rewrite the condition as `"0" <= c <= "9"`.
+
+Besides, QuickCheck is a nerdsnipe for elegant test case generation strategies,
+and shrinking algorithms to find minimal failing cases. Learning about
+Hypothesis has motivated me to do three things:
+
+- Learn Lean and Coq, to understand code with _formal guarantees_, the thing
+  Hypothesis' randomized testing is trying to approximate.
+- Read John Hughes' [QuickCheck Testing for Fun and
+  Profit](https://citeseerx.ist.psu.edu/document?repid=rep1&type=pdf&doi=5ae25681ff881430797268c5787d7d9ee6cf542c)
+  his [Experiences with QuickCheck](https://www.cs.tufts.edu/~nr/cs257/archive/john-hughes/quviq-testing.pdf).
+- Learn about [fuzzing](https://en.wikipedia.org/wiki/Fuzzing) and how
+  Hypothesis implements/could be extended to implement it.

@@ -1,12 +1,24 @@
 import sys
 from pathlib import Path
 
+from lox.ast_printer import AstPrinter
+from lox.parser import Parser
 from lox.scanner import Scanner
 
 
 class Lox:
     had_error = False
 
+    # The @classmethod decorator modifies a method to operate on the class
+    # itself rather than on instances of the class (hence the first argument is
+    # cls and not self). This allows you to use it without creating an instance.
+    # Without @classmethod:
+    # lox = Lox()
+    # lox.error(5, "Whoops!")
+    # With @classmethod:
+    # Lox.error(5, "Whoops!")
+    # @classmethod is used for error handling because we want a single, global
+    # error state had_error
     @classmethod
     def error(cls, line: int, message: str) -> None:
         """ "Report a basic syntax error with line number but no additional
@@ -62,10 +74,13 @@ def run_prompt() -> None:
 def run(source: str) -> None:
     scanner = Scanner(source)
     tokens = scanner.scan_tokens()
+    parser = Parser(tokens)
+    expression = parser.parse()
 
-    # For now, just print the tokens
-    for token in tokens:
-        print(token)
+    # For now, just print the AST
+    if expression:
+        printer = AstPrinter()
+        print(printer.print(expression))
 
 
 def main() -> None:
