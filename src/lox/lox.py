@@ -1,13 +1,15 @@
 import sys
 from pathlib import Path
 
-from lox.ast_printer import AstPrinter
+from lox.interpreter import Interpreter, RuntimeError
 from lox.parser import Parser
 from lox.scanner import Scanner
 
 
 class Lox:
+    interpreter = Interpreter()
     had_error = False
+    had_runtime_error = False
 
     # The @classmethod decorator modifies a method to operate on the class
     # itself rather than on instances of the class (hence the first argument is
@@ -28,6 +30,12 @@ class Lox:
             line: Line number where the error occurred
             message: Description of the error"""
         cls.report(line, "", message)
+
+    @classmethod
+    def runtime_error(cls, error: RuntimeError) -> None:
+        """Report a runtime error with line number information."""
+        print(f"{error}\n[line {error.token.line}]", file=sys.stderr)
+        cls.had_runtime_error = True
 
     @classmethod
     def report(cls, line: int, where: str, message: str) -> None:
@@ -77,10 +85,13 @@ def run(source: str) -> None:
     parser = Parser(tokens)
     expression = parser.parse()
 
-    # For now, just print the AST
+    # Stop if there was a syntax error
+    if Lox.had_error:
+        return
+
+    # Evaluate expression if parsing succeeded
     if expression:
-        printer = AstPrinter()
-        print(printer.print(expression))
+        Lox.interpreter.interpret(expression)
 
 
 def main() -> None:
