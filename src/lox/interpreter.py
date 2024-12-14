@@ -1,9 +1,11 @@
+import time
 from typing import Any, List
 
 from lox.environment import Environment
 from lox.expr import (
     Assign,
     Binary,
+    Call,
     Expr,
     ExprVisitor,
     Grouping,
@@ -12,7 +14,18 @@ from lox.expr import (
     Unary,
     Variable,
 )
-from lox.stmt import Block, Expression, If, Print, Stmt, StmtVisitor, Var, While
+from lox.lox_callable import LoxCallable, LoxFunction, Return
+from lox.stmt import (
+    Block,
+    Expression,
+    Function,
+    If,
+    Print,
+    Stmt,
+    StmtVisitor,
+    Var,
+    While,
+)
 from lox.token import Token
 from lox.token_type import TokenType
 
@@ -29,7 +42,20 @@ class Interpreter(ExprVisitor[Any], StmtVisitor[None]):
     """Evaluates Lox expressions."""
 
     def __init__(self):
-        self.environment = Environment()
+        self.globals = Environment()
+        self.environment = self.globals
+
+        class ClockFunction(LoxCallable):
+            def call(self, interpreter: Interpreter, arguments: List[Any]) -> float:
+                return float(time.time())
+
+            def arity(self) -> int:
+                return 0
+
+            def __str__(self) -> str:
+                return "<native fn>"
+
+        self.globals.define("clock", ClockFunction())
 
     def interpret(self, statements: List[Stmt]) -> None:
         try:
@@ -132,6 +158,36 @@ class Interpreter(ExprVisitor[Any], StmtVisitor[None]):
         value = self._evaluate(expr.value)
         self.environment.assign(expr.name, value)
         return value
+
+    def visit_call(self, expr: Call) -> Any:
+        callee = self._evaluate(expr.callee)
+
+        arguments = []
+        for argument in expr.arguments:
+            arguments.append(self._evaluate(argument))
+
+        if not isinstance(callee, LoxCallable):
+            raise RuntimeError(expr.paren, "Can only call functions and classes.")
+
+        function = callee
+        if len(arguments) != function.arity():
+            raise RuntimeError(
+                expr.paren,
+                f"Expected {function.arity()} arguments but got {len(arguments)}.",
+            )
+
+        return function.call(self, arguments)
+
+    def visit_function_stmt(self, stmt: Function) -> None:
+        function = LoxFunction(stmt, self.environment)
+        self.environment.define(stmt.name.lexeme, function)
+        return None
+
+    def visit_return_stmt(self, stmt: Return) -> None:
+        value = None
+        if stmt.value is not None:
+            value = self._evaluate(stmt.value)
+        raise Return(value)
 
     def visit_expression_stmt(self, stmt: Expression) -> None:
         self._evaluate(stmt.expression)

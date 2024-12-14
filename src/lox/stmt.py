@@ -65,6 +65,25 @@ class Block(Stmt):
         return visitor.visit_block_stmt(self)
 
 
+class Return(Stmt):
+    def __init__(self, keyword: Token, value: Expr | None):
+        self.keyword = keyword
+        self.value = value
+
+    def accept(self, visitor: "StmtVisitor[R]") -> R:
+        return visitor.visit_return_stmt(self)
+
+
+class Function(Stmt):
+    def __init__(self, name: Token, params: List[Token], body: List[Stmt]):
+        self.name = name
+        self.params = params
+        self.body = body
+
+    def accept(self, visitor: "StmtVisitor[R]") -> R:
+        return visitor.visit_function_stmt(self)
+
+
 class StmtVisitor(Generic[R], ABC):
     @abstractmethod
     def visit_expression_stmt(self, stmt: Expression) -> R:
@@ -80,4 +99,20 @@ class StmtVisitor(Generic[R], ABC):
 
     @abstractmethod
     def visit_block_stmt(self, stmt: Block) -> R:
+        pass
+
+    @abstractmethod
+    def visit_if_stmt(self, stmt: If) -> R:
+        pass
+
+    @abstractmethod
+    def visit_while_stmt(self, stmt: While) -> R:
+        pass
+
+    @abstractmethod
+    def visit_function_stmt(self, stmt: Function) -> R:
+        pass
+
+    @abstractmethod
+    def visit_return_stmt(self, stmt: Return) -> R:
         pass

@@ -1,7 +1,17 @@
 from typing import List, Optional
 
-from lox.expr import Assign, Binary, Expr, Grouping, Literal, Logical, Unary, Variable
-from lox.stmt import Block, Expression, If, Print, Stmt, Var, While
+from lox.expr import (
+    Assign,
+    Binary,
+    Call,
+    Expr,
+    Grouping,
+    Literal,
+    Logical,
+    Unary,
+    Variable,
+)
+from lox.stmt import Block, Expression, Function, If, Print, Return, Stmt, Var, While
 from lox.token import Token
 from lox.token_type import TokenType
 
@@ -19,13 +29,18 @@ class Parser:
     Grammar:
 
     program     -> declaration* EOF ;
-    declaration -> varDecl | statement ;
+    declaration -> funDecl | varDecl | statement ;
+    funDecl     -> "fun" function ;
+    function    -> IDENTIFIER "(" parameters? ")" block ;
+    parameters  -> IDENTIFIER ( "," IDENTIFIER )* ;
     varDecl     -> "var" IDENTIFIER ( "=" expression )? ";" ;
-    statement   -> exprStmt | forStmt | ifStmt | printStmt | whileStmt | block ;
+    statement   -> exprStmt | forStmt | ifStmt | printStmt | returnStmt |
+                |  whileStmt | block ;
     forStmt     -> "for" "(" (varDecl | exprStmt | ";" )
                    expression? ";"
                    expression? ")" statement ;
     ifStmt      -> "if" "(" expression ")" statement ( "else" statement )? ;
+    returnStmt  -> "return" expression? ";" ;
     block       -> "{" declaration* "}" ;
     exprStmt    -> expression ";" ;
     printStmt   -> "print" expression ";" ;
@@ -39,7 +54,9 @@ class Parser:
     comparison  -> term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
     term        -> factor ( ( "-" | "+" ) factor )* ;
     factor      -> unary ( ( "/" | "*" ) unary )* ;
-    unary       -> ( "!" | "-" ) unary | primary ;
+    unary       -> ( "!" | "-" ) unary | call ;
+    call        -> primary ( "(" arguments? ")" )* ;
+    arguments   -> expression ( "," expression )* ;
     primary     -> NUMBER | STRING | "true" | "false" | "nil"
                 | "(" expression ")" | IDENTIFIER;
     """
@@ -69,11 +86,12 @@ class Parser:
         # print x;    // we still want this line to execute, so synchronize
         #                after the previous parse error
         try:
-            # First look for a variable declaration
+            if self.match(TokenType.FUN):
+                return self.function("function")
             if self.match(TokenType.VAR):
                 return self.var_declaration()
 
-            # If not a variable declaration, try a statement
+            # If not a function or a variable declaration, try a statement
             return self.statement()
         except ParseError:
             self.synchronize()
@@ -109,6 +127,9 @@ class Parser:
         # ... print...
         if self.match(TokenType.PRINT):
             return self.print_statement()
+        # ... return...
+        if self.match(TokenType.RETURN):
+            return self.return_statement()
         # ... while...
         if self.match(TokenType.WHILE):
             return self.while_statement()
@@ -117,6 +138,39 @@ class Parser:
             return Block(self.block())
         # ... or expression
         return self.expression_statement()
+
+    def function(self, kind: str) -> Function:
+        name = self.consume(TokenType.IDENTIFIER, f"Expect {kind} name.")
+
+        self.consume(TokenType.LEFT_PAREN, f"Expect '(' after {kind} name.")
+        parameters = []
+
+        if not self.check(TokenType.RIGHT_PAREN):
+            while True:
+                if len(parameters) >= 255:
+                    self.error(self.peek(), "Can't have more than 255 parameters.")
+
+                parameters.append(
+                    self.consume(TokenType.IDENTIFIER, "Expect parameter name.")
+                )
+
+                if not self.match(TokenType.COMMA):
+                    break
+
+        self.consume(TokenType.RIGHT_PAREN, "Expect ')' after parameters.")
+
+        self.consume(TokenType.LEFT_BRACE, f"Expect '{{' before {kind} body.")
+        body = self.block()
+        return Function(name, parameters, body)
+
+    def return_statement(self) -> Stmt:
+        keyword = self.previous()
+        value = None
+        if not self.check(TokenType.SEMICOLON):
+            value = self.expression()
+
+        self.consume(TokenType.SEMICOLON, "Expect ';' after return value.")
+        return Return(keyword, value)
 
     def for_statement(self) -> Stmt:
         self.consume(TokenType.LEFT_PAREN, "Expect '(' after 'for'.")
@@ -282,7 +336,32 @@ class Parser:
             right = self.unary()
             return Unary(operator, right)
 
-        return self.primary()
+        return self.call()
+
+    def call(self) -> Expr:
+        expr = self.primary()
+
+        while True:
+            if self.match(TokenType.LEFT_PAREN):
+                expr = self.finish_call(expr)
+            else:
+                break
+
+        return expr
+
+    def finish_call(self, callee: Expr) -> Expr:
+        arguments = []
+        if not self.check(TokenType.RIGHT_PAREN):
+            while True:
+                if len(arguments) >= 255:
+                    self.error(self.peek(), "Can't have more than 255 arguments.")
+                arguments.append(self.expression())
+                if not self.match(TokenType.COMMA):
+                    break
+
+        paren = self.consume(TokenType.RIGHT_PAREN, "Expect ')' after arguments.")
+
+        return Call(callee, paren, arguments)
 
     def primary(self) -> Expr:
         """literals, parentheses"""
