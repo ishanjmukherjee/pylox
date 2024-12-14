@@ -893,3 +893,56 @@ states all the time.
 > entire source file during a coffee break are over. But programmer expectations
 > have risen as quickly, if not faster. They expect their editors to reparse
 > files in milliseconds after every keystroke.
+
+## Chapter 8: Statements and State
+
+### Expression statements
+
+This is mind-expanding, somewhat: expression statements let you "place an
+expression where a statement is expected". Sounds... weird? In fact, you use
+them all the time! They "exist to evaluate expressions that have side effects".
+
+> Any time you see a function or method call followed by a `;`, you're looking
+> at an expression statement.
+
+Take a concrete example like in C:
+
+```c
+add_and_print(3, 4);
+```
+
+This line is the `add_and_print` function being *evaluated* using the arguments
+`3` and `4` (and printing the result as a side effect).
+
+### Expressions and statements are disjoint
+
+The book makes a pretty clear-cut point:
+
+> There is no place in the grammar where both an expression and a statement are
+> allowed. The operands of, say, `+` are always expressions, never statements.
+> The body of a `while` loop is always a statement.
+
+Notably, since the two syntaxes are disjoint, they don't need to inherit from a
+single base class. In fact, letting them inherit from different base classes is
+strategic: it enables the Python compiler to warn us when we try to pass a
+statement to a method that expects an expression.
+
+### Runtime vs parse-time errors
+
+Lox is a dynamically typed language, which means we cannot consistently make
+type checks part of parse-time error reporting. For example, an illegal
+expression like `2 + "two"` will throw an error only during runtime, even though
+we could catch such errors during parse time (similar to how Java, C++,
+TypeScript, Rust and Swift wouldn't compile `2 + "two"`).
+
+This type error, for example, can only be caught during runtime in Lox due to
+dynamic typing:
+
+```js
+var x = input();  // suppose user inputs a number
+var y = input();  // suppose user inputs a string
+x + y;            // can't know at parse time if this is valid!
+```
+
+It would be inconsistent and surprising for the user to have some type checks at
+parse time, and others at runtime. So, we consign all type errors to runtime.

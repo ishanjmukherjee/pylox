@@ -48,6 +48,23 @@ class Unary(Expr):
         return visitor.visit_unary(self)
 
 
+class Variable(Expr):
+    def __init__(self, name: Token):
+        self.name = name
+
+    def accept(self, visitor: "ExprVisitor[R]") -> R:
+        return visitor.visit_variable_expr(self)
+
+
+class Assign(Expr):
+    def __init__(self, name: Token, value: Expr):
+        self.name = name
+        self.value = value
+
+    def accept(self, visitor: "ExprVisitor[R]") -> R:
+        return visitor.visit_assign_expr(self)
+
+
 class ExprVisitor(Generic[R], ABC):
     @abstractmethod
     def visit_binary(self, expr: Binary) -> R:

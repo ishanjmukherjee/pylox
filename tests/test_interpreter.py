@@ -4,6 +4,7 @@ import pytest
 
 from lox.expr import Binary, Grouping, Literal, Unary
 from lox.interpreter import Interpreter, RuntimeError
+from lox.stmt import Expression
 from lox.token import Token
 from lox.token_type import TokenType
 
@@ -195,7 +196,7 @@ def test_interpret_method_handles_runtime_error(
     expr = Unary(operator, Literal("naht a number"))
 
     # Capture stdout/stderr
-    interpreter.interpret(expr)
+    interpreter.interpret([Expression(expr)])
     captured = capfd.readouterr()
 
     # Verify error was reported

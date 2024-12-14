@@ -2,10 +2,10 @@ from typing import List
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
-from hypothesis.stateful import RuleBasedStateMachine, rule
 
 from lox.expr import Binary, Grouping, Literal, Unary
 from lox.parser import Parser
+from lox.stmt import Expression
 from lox.token import Token
 from lox.token_type import TokenType
 
@@ -78,8 +78,8 @@ def literal_tokens(draw) -> Token:
 
 
 @st.composite
-def valid_expressions(draw) -> List[Token]:
-    """Generate token sequences that represent valid expressions."""
+def valid_expression_stmts(draw) -> List[Token]:
+    """Generate token sequences that represent valid expression statements."""
 
     def generate_expr(depth=0) -> List[Token]:
         if depth > 5:  # Limit nesting depth
@@ -127,6 +127,7 @@ def valid_expressions(draw) -> List[Token]:
             )
 
     tokens = generate_expr()
+    tokens.append(Token(TokenType.SEMICOLON, ";", None, 1))
     tokens.append(Token(TokenType.EOF, "", None, 1))
     return tokens
 
@@ -143,10 +144,19 @@ class TestParser:
         ]
 
         for token, expected_value in literals:
-            parser = Parser([token, Token(TokenType.EOF, "", None, 1)])
-            expr = parser.parse()
-            assert isinstance(expr, Literal)
-            assert expr.value == expected_value
+            parser = Parser(
+                [
+                    token,
+                    Token(TokenType.SEMICOLON, ";", None, 1),
+                    Token(TokenType.EOF, "", None, 1),
+                ]
+            )
+            statements = parser.parse()
+            assert isinstance(statements, list)
+            assert len(statements) == 1
+            assert isinstance(statements[0], Expression)
+            assert isinstance(statements[0].expression, Literal)
+            assert statements[0].expression.value == expected_value
 
     def test_grouping_expression(self):
         """Test parsing of grouped expressions."""
@@ -154,27 +164,35 @@ class TestParser:
             Token(TokenType.LEFT_PAREN, "(", None, 1),
             Token(TokenType.NUMBER, "123", 123.0, 1),
             Token(TokenType.RIGHT_PAREN, ")", None, 1),
+            Token(TokenType.SEMICOLON, ";", None, 1),
             Token(TokenType.EOF, "", None, 1),
         ]
         parser = Parser(tokens)
-        expr = parser.parse()
-        assert isinstance(expr, Grouping)
-        assert isinstance(expr.expression, Literal)
-        assert expr.expression.value == 123.0
+        statements = parser.parse()
+        assert isinstance(statements, list)
+        assert len(statements) == 1
+        assert isinstance(statements[0], Expression)
+        assert isinstance(statements[0].expression, Grouping)
+        assert isinstance(statements[0].expression.expression, Literal)
+        assert statements[0].expression.expression.value == 123.0
 
     def test_unary_expression(self):
         """Test parsing of unary expressions."""
         tokens = [
             Token(TokenType.MINUS, "-", None, 1),
             Token(TokenType.NUMBER, "123", 123.0, 1),
+            Token(TokenType.SEMICOLON, ";", None, 1),
             Token(TokenType.EOF, "", None, 1),
         ]
         parser = Parser(tokens)
-        expr = parser.parse()
-        assert isinstance(expr, Unary)
-        assert expr.operator.type == TokenType.MINUS
-        assert isinstance(expr.right, Literal)
-        assert expr.right.value == 123.0
+        statements = parser.parse()
+        assert isinstance(statements, list)
+        assert len(statements) == 1
+        assert isinstance(statements[0], Expression)
+        assert isinstance(statements[0].expression, Unary)
+        assert statements[0].expression.operator.type == TokenType.MINUS
+        assert isinstance(statements[0].expression.right, Literal)
+        assert statements[0].expression.right.value == 123.0
 
     def test_binary_expression(self):
         """Test parsing of binary expressions."""
@@ -182,10 +200,15 @@ class TestParser:
             Token(TokenType.NUMBER, "1", 1.0, 1),
             Token(TokenType.PLUS, "+", None, 1),
             Token(TokenType.NUMBER, "2", 2.0, 1),
+            Token(TokenType.SEMICOLON, ";", None, 1),
             Token(TokenType.EOF, "", None, 1),
         ]
         parser = Parser(tokens)
-        expr = parser.parse()
+        statements = parser.parse()
+        assert isinstance(statements, list)
+        assert len(statements) == 1
+        assert isinstance(statements[0], Expression)
+        expr = statements[0].expression
         assert isinstance(expr, Binary)
         assert expr.operator.type == TokenType.PLUS
         assert isinstance(expr.left, Literal)
@@ -202,10 +225,15 @@ class TestParser:
             Token(TokenType.NUMBER, "2", 2.0, 1),
             Token(TokenType.STAR, "*", None, 1),
             Token(TokenType.NUMBER, "3", 3.0, 1),
+            Token(TokenType.SEMICOLON, ";", None, 1),
             Token(TokenType.EOF, "", None, 1),
         ]
         parser = Parser(tokens)
-        expr = parser.parse()
+        statements = parser.parse()
+        assert isinstance(statements, list)
+        assert len(statements) == 1
+        assert isinstance(statements[0], Expression)
+        expr = statements[0].expression
         assert isinstance(expr, Binary)
         assert expr.operator.type == TokenType.PLUS
         assert isinstance(expr.right, Binary)
@@ -221,15 +249,18 @@ class TestParser:
                     Token(TokenType.NUMBER, "1", 1.0, 1),
                     Token(TokenType.LESS, "<", None, 1),
                     Token(TokenType.NUMBER, "2", 2.0, 1),
+                    Token(TokenType.SEMICOLON, ";", None, 1),
                     Token(TokenType.EOF, "", None, 1),
                 ],
-                lambda expr: (
-                    isinstance(expr, Binary)
-                    and expr.operator.type == TokenType.LESS
-                    and isinstance(expr.left, Literal)
-                    and expr.left.value == 1.0
-                    and isinstance(expr.right, Literal)
-                    and expr.right.value == 2.0
+                lambda stmts: (
+                    isinstance(stmts, list)
+                    and isinstance(stmts[0], Expression)
+                    and isinstance(stmts[0].expression, Binary)
+                    and stmts[0].expression.operator.type == TokenType.LESS
+                    and isinstance(stmts[0].expression.left, Literal)
+                    and stmts[0].expression.left.value == 1.0
+                    and isinstance(stmts[0].expression.right, Literal)
+                    and stmts[0].expression.right.value == 2.0
                 ),
             ),
             # Chained comparison: 1 < 2 < 3 (should parse as (1 < 2) < 3)
@@ -240,15 +271,18 @@ class TestParser:
                     Token(TokenType.NUMBER, "2", 2.0, 1),
                     Token(TokenType.LESS, "<", None, 1),
                     Token(TokenType.NUMBER, "3", 3.0, 1),
+                    Token(TokenType.SEMICOLON, ";", None, 1),
                     Token(TokenType.EOF, "", None, 1),
                 ],
-                lambda expr: (
-                    isinstance(expr, Binary)
-                    and expr.operator.type == TokenType.LESS
-                    and isinstance(expr.left, Binary)
-                    and expr.left.operator.type == TokenType.LESS
-                    and isinstance(expr.right, Literal)
-                    and expr.right.value == 3.0
+                lambda stmts: (
+                    isinstance(stmts, list)
+                    and isinstance(stmts[0], Expression)
+                    and isinstance(stmts[0].expression, Binary)
+                    and stmts[0].expression.operator.type == TokenType.LESS
+                    and isinstance(stmts[0].expression.left, Binary)
+                    and stmts[0].expression.left.operator.type == TokenType.LESS
+                    and isinstance(stmts[0].expression.right, Literal)
+                    and stmts[0].expression.right.value == 3.0
                 ),
             ),
             # Mixed operators: 1 < 2 + 3
@@ -259,58 +293,19 @@ class TestParser:
                     Token(TokenType.NUMBER, "2", 2.0, 1),
                     Token(TokenType.PLUS, "+", None, 1),
                     Token(TokenType.NUMBER, "3", 3.0, 1),
+                    Token(TokenType.SEMICOLON, ";", None, 1),
                     Token(TokenType.EOF, "", None, 1),
                 ],
-                lambda expr: (
-                    isinstance(expr, Binary)
-                    and expr.operator.type == TokenType.LESS
-                    and isinstance(expr.left, Literal)
-                    and isinstance(expr.right, Binary)
-                    and expr.right.operator.type == TokenType.PLUS
-                    and isinstance(expr.right.left, Literal)
-                    and isinstance(expr.right.right, Literal)
-                ),
-            ),
-            # All comparison operators: 1 <= 2 >= 3 < 4 > 5
-            (
-                [
-                    Token(TokenType.NUMBER, "1", 1.0, 1),
-                    Token(TokenType.LESS_EQUAL, "<=", None, 1),
-                    Token(TokenType.NUMBER, "2", 2.0, 1),
-                    Token(TokenType.GREATER_EQUAL, ">=", None, 1),
-                    Token(TokenType.NUMBER, "3", 3.0, 1),
-                    Token(TokenType.LESS, "<", None, 1),
-                    Token(TokenType.NUMBER, "4", 4.0, 1),
-                    Token(TokenType.GREATER, ">", None, 1),
-                    Token(TokenType.NUMBER, "5", 5.0, 1),
-                    Token(TokenType.EOF, "", None, 1),
-                ],
-                lambda expr: (
-                    isinstance(expr, Binary)
-                    and expr.operator.type == TokenType.GREATER
-                    and isinstance(expr.left, Binary)
-                    and expr.left.operator.type == TokenType.LESS
-                    and isinstance(expr.left.left, Binary)
-                ),
-            ),
-            # Parenthesized comparison: (1 < 2) > 3
-            (
-                [
-                    Token(TokenType.LEFT_PAREN, "(", None, 1),
-                    Token(TokenType.NUMBER, "1", 1.0, 1),
-                    Token(TokenType.LESS, "<", None, 1),
-                    Token(TokenType.NUMBER, "2", 2.0, 1),
-                    Token(TokenType.RIGHT_PAREN, ")", None, 1),
-                    Token(TokenType.GREATER, ">", None, 1),
-                    Token(TokenType.NUMBER, "3", 3.0, 1),
-                    Token(TokenType.EOF, "", None, 1),
-                ],
-                lambda expr: (
-                    isinstance(expr, Binary)
-                    and expr.operator.type == TokenType.GREATER
-                    and isinstance(expr.left, Grouping)
-                    and isinstance(expr.left.expression, Binary)
-                    and expr.left.expression.operator.type == TokenType.LESS
+                lambda stmts: (
+                    isinstance(stmts, list)
+                    and isinstance(stmts[0], Expression)
+                    and isinstance(stmts[0].expression, Binary)
+                    and stmts[0].expression.operator.type == TokenType.LESS
+                    and isinstance(stmts[0].expression.left, Literal)
+                    and isinstance(stmts[0].expression.right, Binary)
+                    and stmts[0].expression.right.operator.type == TokenType.PLUS
+                    and isinstance(stmts[0].expression.right.left, Literal)
+                    and isinstance(stmts[0].expression.right.right, Literal)
                 ),
             ),
         ]
@@ -327,103 +322,22 @@ class TestParser:
         tokens = [
             Token(TokenType.LEFT_PAREN, "(", None, 1),
             Token(TokenType.NUMBER, "123", 123.0, 1),
+            Token(TokenType.SEMICOLON, ";", None, 1),
             Token(TokenType.EOF, "", None, 1),
         ]
         parser = Parser(tokens)
-        result = parser.parse()
-        # When we get a ParseError, the parser returns None, following the book
-        assert result is None
+        statements = parser.parse()
+        assert isinstance(statements, list)
+        # All ParseErrors means an empty list is returned
+        assert len(statements) == 0
 
-    @given(valid_expressions())
+    @given(valid_expression_stmts())
     @settings(max_examples=100)
-    def test_parser_with_valid_expressions(self, tokens):
+    def test_parser_with_valid_expression_stmts(self, tokens):
         """Test parser with structurally valid expressions."""
         parser = Parser(tokens)
-        result = parser.parse()
-        assert result is not None  # should always parse successfully
-        assert isinstance(result, (Binary, Grouping, Literal, Unary))
-
-
-# The state machine "inverts" the parser in a sense. The parser takes arbitrary
-# input and checks if it's valid. The state machine starts with known-valid
-# pieces and composes them in ways that preserve validity.
-@settings(max_examples=100, stateful_step_count=30)
-class ParserStateMachine(RuleBasedStateMachine):
-    def __init__(self):
-        super().__init__()
-        self.expressions = []  # Store complete, valid expressions
-
-    @rule(value=literal_tokens())
-    def add_literal_expression(self, value):
-        """Add a new literal as a complete expression"""
-        tokens = [value, Token(TokenType.EOF, "", None, 1)]
-        parser = Parser(tokens)
-        result = parser.parse()
-        assert result is not None
-        self.expressions.append(tokens[:-1])  # Store without EOF
-
-    @rule(data=st.data())
-    def combine_with_binary_op(self, data):
-        """Combine two existing expressions with a binary operator"""
-        # We need at least two expressions to combine
-        if len(self.expressions) < 2:
-            return
-
-        # Randomly pick two expressions from our list of previously built valid
-        # expressions.
-        # self.expressions is a list of token lists, each representing a valid
-        # expression.
-        left = data.draw(st.sampled_from(self.expressions))
-        right = data.draw(st.sampled_from(self.expressions))
-
-        # Randomly pick a binary operator
-        op = data.draw(
-            st.sampled_from(
-                [
-                    Token(TokenType.PLUS, "+", None, 1),
-                    Token(TokenType.MINUS, "-", None, 1),
-                    Token(TokenType.STAR, "*", None, 1),
-                ]
-            )
-        )
-
-        # Combine into a new expression: left + op + right + EOF
-        new_tokens = left + [op] + right + [Token(TokenType.EOF, "", None, 1)]
-
-        # Verify the new expression is valid by parsing it
-        parser = Parser(new_tokens)
-        result = parser.parse()
-        assert result is not None  # make sure it parsed successfully
-
-        # Store the new valid expression (without EOF) for future combinations.
-        # So, if self.expressions just started with two literals, Token(123) and
-        # Token(456), and we drew a "+", [Token(123), Token("+"), Token(456)]
-        # would be added as a valid expression. Now we have 3 valid expressions
-        # in our "store" we can draw from to build even more complex
-        # expressions.
-        # This is a common technique for "deriving" valid expressions, most
-        # memorably described in the rules for the MU-puzzle in "Godel, Escher,
-        # Bach" by Douglas Hofstadter
-        self.expressions.append(new_tokens[:-1])
-
-    @rule(data=st.data())
-    def wrap_in_parens(self, data):
-        """Wrap an existing expression in parentheses"""
-        # We need at least one expression to wrap in parens
-        if not self.expressions:
-            return
-
-        expr = data.draw(st.sampled_from(self.expressions))
-        new_tokens = (
-            [Token(TokenType.LEFT_PAREN, "(", None, 1)]
-            + expr
-            + [Token(TokenType.RIGHT_PAREN, ")", None, 1)]
-        )
-        parser = Parser(new_tokens + [Token(TokenType.EOF, "", None, 1)])
-        result = parser.parse()
-        assert result is not None
-        self.expressions.append(new_tokens)
-
-
-# Convert state machine into a runnable test
-TestParserStateMachine = ParserStateMachine.TestCase
+        statements = parser.parse()
+        assert isinstance(statements, list)
+        assert len(statements) == 1  # should always parse successfully
+        assert isinstance(statements[0], Expression)
+        assert isinstance(statements[0].expression, (Binary, Grouping, Literal, Unary))

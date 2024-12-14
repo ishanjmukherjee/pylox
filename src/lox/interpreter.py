@@ -1,6 +1,17 @@
-from typing import Any
+from typing import Any, List
 
-from lox.expr import Binary, Expr, ExprVisitor, Grouping, Literal, Unary
+from lox.environment import Environment
+from lox.expr import (
+    Assign,
+    Binary,
+    Expr,
+    ExprVisitor,
+    Grouping,
+    Literal,
+    Unary,
+    Variable,
+)
+from lox.stmt import Block, Expression, Print, Stmt, StmtVisitor, Var
 from lox.token import Token
 from lox.token_type import TokenType
 
@@ -13,17 +24,16 @@ class RuntimeError(Exception):
         self.token = token
 
 
-class Interpreter(ExprVisitor[Any]):
+class Interpreter(ExprVisitor[Any], StmtVisitor[None]):
     """Evaluates Lox expressions."""
 
-    def interpret(self, expression: Expr) -> None:
-        """
-        Evaluate an expression and print the result.
-        Handle runtime errors by reporting them through the Lox class.
-        """
+    def __init__(self):
+        self.environment = Environment()
+
+    def interpret(self, statements: List[Stmt]) -> None:
         try:
-            value = self._evaluate(expression)
-            print(self._stringify(value))
+            for statement in statements:
+                self._execute(statement)
         except RuntimeError as error:
             from lox.lox import Lox
 
@@ -94,6 +104,42 @@ class Interpreter(ExprVisitor[Any]):
 
         # Unreachable
         return None
+
+    def visit_variable_expr(self, expr: Variable) -> Any:
+        return self.environment.get(expr.name)
+
+    def visit_assign_expr(self, expr: Assign) -> Any:
+        value = self._evaluate(expr.value)
+        self.environment.assign(expr.name, value)
+        return value
+
+    def visit_expression_stmt(self, stmt: Expression) -> None:
+        self._evaluate(stmt.expression)
+
+    def visit_print_stmt(self, stmt: Print) -> None:
+        value = self._evaluate(stmt.expression)
+        print(self._stringify(value))
+
+    def visit_var_stmt(self, stmt: Var) -> None:
+        value = None
+        if stmt.initializer is not None:
+            value = self._evaluate(stmt.initializer)
+        self.environment.define(stmt.name.lexeme, value)
+
+    def visit_block_stmt(self, stmt: Block) -> None:
+        self._execute_block(stmt.statements, Environment(self.environment))
+
+    def _execute_block(self, statements: List[Stmt], environment: Environment) -> None:
+        previous = self.environment
+        try:
+            self.environment = environment
+            for statement in statements:
+                self._execute(statement)
+        finally:
+            self.environment = previous
+
+    def _execute(self, stmt: Stmt) -> None:
+        stmt.accept(self)
 
     def _evaluate(self, expr: Expr) -> Any:
         """Helper method to evaluate an expression."""

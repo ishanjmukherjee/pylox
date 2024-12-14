@@ -83,15 +83,15 @@ def run(source: str) -> None:
     scanner = Scanner(source)
     tokens = scanner.scan_tokens()
     parser = Parser(tokens)
-    expression = parser.parse()
+    statements = parser.parse()
 
     # Stop if there was a syntax error
     if Lox.had_error:
         return
 
-    # Evaluate expression if parsing succeeded
-    if expression:
-        Lox.interpreter.interpret(expression)
+    # Execute statements if parsing succeeded
+    if statements:
+        Lox.interpreter.interpret(statements)
 
 
 def main() -> None:

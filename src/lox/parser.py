@@ -1,6 +1,7 @@
 from typing import List, Optional
 
-from lox.expr import Binary, Expr, Grouping, Literal, Unary
+from lox.expr import Assign, Binary, Expr, Grouping, Literal, Unary, Variable
+from lox.stmt import Block, Expression, Print, Stmt, Var
 from lox.token import Token
 from lox.token_type import TokenType
 
@@ -15,16 +16,24 @@ class Parser:
     """
     A recursive descent parser for the Lox language.
 
-    Takes a list of tokens and produces an AST. Operator precedence and
-    associativity follows this grammar:
+    Grammar:
 
-    expression -> equality
-    equality   -> comparison ( ( "!=" | "==" ) comparison )*
-    comparison -> term ( ( ">" | ">=" | "<" | "<=" ) term )*
-    term       -> factor ( ( "-" | "+" ) factor )*
-    factor     -> unary ( ( "/" | "*" ) unary )*
-    unary      -> ( "!" | "-" ) unary | primary
-    primary    -> NUMBER | STRING | "true" | "false" | "nil" | "(" expression ")"
+    program     -> declaration* EOF ;
+    declaration -> varDecl | statement ;
+    varDecl     -> "var" IDENTIFIER ( "=" expression )? ";" ;
+    statement   -> exprStmt | printStmt | block ;
+    block       -> "{" declaration* "}" ;
+    exprStmt    -> expression ";" ;
+    printStmt   -> "print" expression ";" ;
+
+    expression  -> assignment ;
+    equality    -> comparison ( ( "!=" | "==" ) comparison )* ;
+    comparison  -> term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
+    term        -> factor ( ( "-" | "+" ) factor )* ;
+    factor      -> unary ( ( "/" | "*" ) unary )* ;
+    unary       -> ( "!" | "-" ) unary | primary ;
+    primary     -> NUMBER | STRING | "true" | "false" | "nil"
+                | "(" expression ")" | IDENTIFIER;
     """
 
     def __init__(self, tokens: List[Token]):
@@ -37,21 +46,105 @@ class Parser:
         self.tokens = tokens
         self.current = 0
 
-    def parse(self) -> Optional[Expr]:
+    def parse(self) -> List[Stmt]:
         """
-        Parse the tokens into an AST.
+        Parse tokens into a list of statements.
 
         Returns:
-            The root node of the AST if successful, None if there was an error
+            A list of parsed statements that form the program.
+            Empty list if only parse errors were encountered.
         """
+        # This is intended to be Parser's only public method
+        statements: List[Stmt] = []
+        while not self.isAtEnd():
+            decl = self.declaration()
+            if decl is not None:
+                statements.append(decl)
+        return statements
+
+    def declaration(self) -> Optional[Stmt]:
+        """Parse a declaration."""
+        # Example of error handling:
+        # 2 + "two";  // type error: not caught at parse time
+        # 2 + ;       // parse error: missing operand after +
+        # print x;    // we still want this line to execute, so synchronize
+        #                after the previous parse error
         try:
-            return self.expression()
+            # First look for a variable declaration
+            if self.match(TokenType.VAR):
+                return self.var_declaration()
+
+            # If not a variable declaration, try a statement
+            return self.statement()
         except ParseError:
+            self.synchronize()
             return None
+
+    def var_declaration(self) -> Stmt:
+        """Parse a variable declaration."""
+        name = self.consume(TokenType.IDENTIFIER, "Expect variable name.")
+
+        # (Optional) variable initialization
+        initializer = None
+        if self.match(TokenType.EQUAL):
+            initializer = self.expression()
+
+        self.consume(TokenType.SEMICOLON, "Expect ';' after variable declaration.")
+        return Var(name, initializer)
+
+    def statement(self) -> Stmt:
+        """Parse a statement."""
+        # Statements are either...
+        # ... print...
+        if self.match(TokenType.PRINT):
+            return self.print_statement()
+        # ... block...
+        if self.match(TokenType.LEFT_BRACE):
+            return Block(self.block())
+        # ... or expression
+        return self.expression_statement()
+
+    def print_statement(self) -> Stmt:
+        """Parse a print statement."""
+        value = self.expression()
+        self.consume(TokenType.SEMICOLON, "Expect ';' after value.")
+        return Print(value)
+
+    def block(self) -> List[Stmt]:
+        """Parse a block of statements."""
+        statements: List[Stmt] = []
+
+        while not self.check(TokenType.RIGHT_BRACE) and not self.isAtEnd():
+            statements.append(self.declaration())
+
+        self.consume(TokenType.RIGHT_BRACE, "Expect '}' after block.")
+        return statements
+
+    def expression_statement(self) -> Stmt:
+        """Parse an expression statement."""
+        expr = self.expression()
+        self.consume(TokenType.SEMICOLON, "Expect ';' after expression.")
+        return Expression(expr)
 
     def expression(self) -> Expr:
         """Parse an expression (lowest precedence level)."""
-        return self.equality()
+        return self.assignment()
+
+    def assignment(self) -> Expr:
+        """Parse an assignment expression."""
+        expr = self.equality()
+
+        if self.match(TokenType.EQUAL):
+            equals = self.previous()
+            value = self.assignment()
+
+            if isinstance(expr, Variable):
+                name = expr.name
+                return Assign(name, value)
+
+            self.error(equals, "Invalid assignment target.")
+
+        return expr
 
     def equality(self) -> Expr:
         """
@@ -59,14 +152,14 @@ class Parser:
 
         equality -> comparison ( ( "!=" | "==" ) comparison )*
         """
-        expr_node = self.comparison()
+        expr = self.comparison()
 
         while self.match(TokenType.BANG_EQUAL, TokenType.EQUAL_EQUAL):
             operator = self.previous()
             right = self.comparison()
-            expr_node = Binary(expr_node, operator, right)
+            expr = Binary(expr, operator, right)
 
-        return expr_node
+        return expr
 
     def comparison(self) -> Expr:
         """
@@ -74,7 +167,7 @@ class Parser:
 
         comparison -> term ( ( ">" | ">=" | "<" | "<=" ) term )*
         """
-        expr_node = self.term()
+        expr = self.term()
 
         while self.match(
             TokenType.GREATER,
@@ -84,9 +177,9 @@ class Parser:
         ):
             operator = self.previous()
             right = self.term()
-            expr_node = Binary(expr_node, operator, right)
+            expr = Binary(expr, operator, right)
 
-        return expr_node
+        return expr
 
     def term(self) -> Expr:
         """
@@ -94,14 +187,14 @@ class Parser:
 
         term -> factor ( ( "-" | "+" ) factor )*
         """
-        expr_node = self.factor()
+        expr = self.factor()
 
         while self.match(TokenType.MINUS, TokenType.PLUS):
             operator = self.previous()
             right = self.factor()
-            expr_node = Binary(expr_node, operator, right)
+            expr = Binary(expr, operator, right)
 
-        return expr_node
+        return expr
 
     def factor(self) -> Expr:
         """
@@ -109,14 +202,14 @@ class Parser:
 
         factor -> unary ( ( "/" | "*" ) unary )*
         """
-        expr_node = self.unary()
+        expr = self.unary()
 
         while self.match(TokenType.SLASH, TokenType.STAR):
             operator = self.previous()
             right = self.unary()
-            expr_node = Binary(expr_node, operator, right)
+            expr = Binary(expr, operator, right)
 
-        return expr_node
+        return expr
 
     def unary(self) -> Expr:
         """
@@ -147,10 +240,13 @@ class Parser:
         if self.match(TokenType.NUMBER, TokenType.STRING):
             return Literal(self.previous().literal)
 
+        if self.match(TokenType.IDENTIFIER):
+            return Variable(self.previous())
+
         if self.match(TokenType.LEFT_PAREN):
-            expr_node = self.expression()
+            expr = self.expression()
             self.consume(TokenType.RIGHT_PAREN, "Expect ')' after expression.")
-            return Grouping(expr_node)
+            return Grouping(expr)
 
         raise self.error(self.peek(), "Expect expression.")
 
@@ -242,6 +338,32 @@ class Parser:
         """
         return self.tokens[self.current - 1]
 
+    def synchronize(self) -> None:
+        """
+        Synchronize the parser state after encountering an error.
+        Discard tokens until reaching a likely statement boundary.
+        """
+        self.advance()
+
+        while not self.isAtEnd():
+            if self.previous().type == TokenType.SEMICOLON:
+                return
+
+            # Don't try to catch expression or block statements
+            if self.peek().type in {
+                TokenType.CLASS,
+                TokenType.FUN,
+                TokenType.VAR,
+                TokenType.FOR,
+                TokenType.IF,
+                TokenType.WHILE,
+                TokenType.PRINT,
+                TokenType.RETURN,
+            }:
+                return
+
+            self.advance()
+
     def error(self, token: Token, message: str) -> ParseError:
         """
         Create a parse error at the given token.
@@ -253,16 +375,14 @@ class Parser:
         Returns:
             A ParseError exception
         """
-        if token.type == TokenType.EOF:
-            # Importing Lox inside error reporter avoids circular dependency at
-            # the cost of having to import Lox on *every* error. But this is a
-            # small cost: errors shouldn't happen a lot in normal operation, and
-            # Python caches imports after the first time anyway.
-            from lox.lox import Lox
+        # Importing Lox inside error reporter avoids circular dependency at
+        # the cost of having to import Lox on *every* error. But this is a
+        # small cost: errors shouldn't happen a lot in normal operation, and
+        # Python caches imports after the first time anyway.
+        from lox.lox import Lox
 
+        if token.type == TokenType.EOF:
             Lox.report(token.line, " at end", message)
         else:
-            from lox.lox import Lox
-
             Lox.report(token.line, f" at '{token.lexeme}'", message)
         return ParseError()
