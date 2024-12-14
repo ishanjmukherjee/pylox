@@ -1,7 +1,7 @@
 from typing import List, Optional
 
 from lox.expr import Assign, Binary, Expr, Grouping, Literal, Logical, Unary, Variable
-from lox.stmt import Block, Expression, If, Print, Stmt, Var
+from lox.stmt import Block, Expression, If, Print, Stmt, Var, While
 from lox.token import Token
 from lox.token_type import TokenType
 
@@ -21,11 +21,12 @@ class Parser:
     program     -> declaration* EOF ;
     declaration -> varDecl | statement ;
     varDecl     -> "var" IDENTIFIER ( "=" expression )? ";" ;
-    statement   -> exprStmt | ifStmt | printStmt | block ;
+    statement   -> exprStmt | ifStmt | printStmt | whileStmt | block ;
     ifStmt      -> "if" "(" expression ")" statement ( "else" statement )? ;
     block       -> "{" declaration* "}" ;
     exprStmt    -> expression ";" ;
     printStmt   -> "print" expression ";" ;
+    whileStmt   -> "while" "(" expression ")" statement ;
 
     expression  -> assignment ;
     assignment  -> IDENTIFIER "=" assignment | logic_or ;
@@ -96,6 +97,14 @@ class Parser:
         self.consume(TokenType.SEMICOLON, "Expect ';' after variable declaration.")
         return Var(name, initializer)
 
+    def while_statement(self):
+        self.consume(TokenType.LEFT_PAREN, "Expect '(' after 'while'.")
+        condition = self.expression()
+        self.consume(TokenType.RIGHT_PAREN, "Expect ')' after condition.")
+        body = self.statement()
+
+        return While(condition, body)
+
     def statement(self) -> Stmt:
         """Parse a statement."""
         # Statements are either...
@@ -105,6 +114,9 @@ class Parser:
         # ... print...
         if self.match(TokenType.PRINT):
             return self.print_statement()
+        # ... while...
+        if self.match(TokenType.WHILE):
+            return self.while_statement()
         # ... block...
         if self.match(TokenType.LEFT_BRACE):
             return Block(self.block())

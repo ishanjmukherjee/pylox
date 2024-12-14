@@ -12,7 +12,7 @@ from lox.expr import (
     Unary,
     Variable,
 )
-from lox.stmt import Block, Expression, If, Print, Stmt, StmtVisitor, Var
+from lox.stmt import Block, Expression, If, Print, Stmt, StmtVisitor, Var, While
 from lox.token import Token
 from lox.token_type import TokenType
 
@@ -152,6 +152,10 @@ class Interpreter(ExprVisitor[Any], StmtVisitor[None]):
         if stmt.initializer is not None:
             value = self._evaluate(stmt.initializer)
         self.environment.define(stmt.name.lexeme, value)
+
+    def visit_while_stmt(self, stmt: While) -> None:
+        while self._is_truthy(self._evaluate(stmt.condition)):
+            self._execute(stmt.body)
 
     def visit_block_stmt(self, stmt: Block) -> None:
         self._execute_block(stmt.statements, Environment(self.environment))

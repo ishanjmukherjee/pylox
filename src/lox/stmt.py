@@ -39,6 +39,15 @@ class If(Stmt):
         return visitor.visit_if_stmt(self)
 
 
+class While(Stmt):
+    def __init__(self, condition: Expr, body: Stmt):
+        self.condition = condition
+        self.body = body
+
+    def accept(self, visitor: "StmtVisitor[R]") -> R:
+        return visitor.visit_while_stmt(self)
+
+
 class Var(Stmt):
     def __init__(self, name: Token, initializer: Expr | None):
         self.name = name
