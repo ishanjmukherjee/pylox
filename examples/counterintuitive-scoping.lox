@@ -1,0 +1,6 @@
+var a = 1;
+{
+  // JavaScript won't let you use a in its own initialization
+  var a = a + 2;
+  print a;
+}
