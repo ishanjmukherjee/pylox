@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, List, TypeVar
 
 from lox.token import Token
 
@@ -78,6 +78,16 @@ class Assign(Expr):
         return visitor.visit_assign_expr(self)
 
 
+class Call(Expr):
+    def __init__(self, callee: Expr, paren: Token, arguments: List[Expr]):
+        self.callee = callee
+        self.paren = paren
+        self.arguments = arguments
+
+    def accept(self, visitor: "ExprVisitor[R]") -> R:
+        return visitor.visit_call(self)
+
+
 class ExprVisitor(Generic[R], ABC):
     @abstractmethod
     def visit_binary(self, expr: Binary) -> R:
@@ -93,4 +103,8 @@ class ExprVisitor(Generic[R], ABC):
 
     @abstractmethod
     def visit_unary(self, expr: Unary) -> R:
+        pass
+
+    @abstractmethod
+    def visit_call(self, expr: Call) -> R:
         pass

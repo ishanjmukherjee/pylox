@@ -1,0 +1,5 @@
+fun HelloWorld(first, last) {
+  print "Hello, " + first + " " + last + "!";
+}
+
+HelloWorld("Ishan", "Mukherjee");  // prints: Hi, Dear Reader!

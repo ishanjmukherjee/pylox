@@ -1,4 +1,3 @@
-# src/lox/tests/test_ast.py
 from typing import Any, List
 
 import pytest

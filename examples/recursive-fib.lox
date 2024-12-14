@@ -1,0 +1,28 @@
+// Function to return nth Fibonacci number
+fun fib(n) {
+  if (n <= 1) return n;
+  return fib(n - 2) + fib(n - 1);
+}
+
+for (var i = 0; i < 20; i = i + 1) {
+  print fib(i);
+}
+
+print "Recursively computed 25th Fibonacci number:";
+
+var start = clock();
+print fib(25);  // 75025
+print clock() - start;  // 1.67698 seconds
+
+print "Iteratively computed 1000th Fibonacci number:";
+
+start = clock();
+var t1 = 0;
+var t2 = 1;
+for (var i = 2; i < 1000; i = i + 1) {
+    var temp_t2 = t2;
+    t2 = t2 + t1;
+    t1 = temp_t2;
+}
+print t2;  // 2.686381002448534e+208
+print clock() - start;  // 0.00657 seconds

@@ -1,0 +1,13 @@
+fun execute_n_times(fn, n) {
+  for (var i = 0; i < n; i = i + 1) {
+    fn(i);
+  }
+}
+
+fun print_n_plus_1(n) {
+  print n + 1;
+}
+
+execute_n_times(print_n_plus_1, 5);  // 1, 2, 3, 4, 5
+// Runtime error, since print expects an expression
+// execute_n_times(print, 5)
