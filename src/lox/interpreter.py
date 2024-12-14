@@ -8,10 +8,11 @@ from lox.expr import (
     ExprVisitor,
     Grouping,
     Literal,
+    Logical,
     Unary,
     Variable,
 )
-from lox.stmt import Block, Expression, Print, Stmt, StmtVisitor, Var
+from lox.stmt import Block, Expression, If, Print, Stmt, StmtVisitor, Var, While
 from lox.token import Token
 from lox.token_type import TokenType
 
@@ -42,6 +43,25 @@ class Interpreter(ExprVisitor[Any], StmtVisitor[None]):
     def visit_literal(self, expr: Literal) -> Any:
         """Return the literal's value directly."""
         return expr.value
+
+    def visit_logical(self, expr: Logical) -> Any:
+        """Evaluate logical expressions (or, and)."""
+        left = self._evaluate(expr.left)
+
+        # Short circuiting logic
+        # Return the last value the program actually evaluates. Examples:
+        # OR: if left is true, right no longer needs to be evaluated, and left
+        # is returned
+        # AND: if left is false, right no longer needs to be evaluated, and left
+        # is returned
+        if expr.operator.type == TokenType.OR:
+            if self._is_truthy(left):
+                return left
+        else:  # TokenType.AND
+            if not self._is_truthy(left):
+                return left
+
+        return self._evaluate(expr.right)
 
     def visit_grouping(self, expr: Grouping) -> Any:
         """Evaluate the expression inside the grouping."""
@@ -116,6 +136,13 @@ class Interpreter(ExprVisitor[Any], StmtVisitor[None]):
     def visit_expression_stmt(self, stmt: Expression) -> None:
         self._evaluate(stmt.expression)
 
+    def visit_if_stmt(self, stmt: If) -> None:
+        if self._is_truthy(self._evaluate(stmt.condition)):
+            self._execute(stmt.then_branch)
+        elif stmt.else_branch is not None:
+            self._execute(stmt.else_branch)
+        return None
+
     def visit_print_stmt(self, stmt: Print) -> None:
         value = self._evaluate(stmt.expression)
         print(self._stringify(value))
@@ -125,6 +152,10 @@ class Interpreter(ExprVisitor[Any], StmtVisitor[None]):
         if stmt.initializer is not None:
             value = self._evaluate(stmt.initializer)
         self.environment.define(stmt.name.lexeme, value)
+
+    def visit_while_stmt(self, stmt: While) -> None:
+        while self._is_truthy(self._evaluate(stmt.condition)):
+            self._execute(stmt.body)
 
     def visit_block_stmt(self, stmt: Block) -> None:
         self._execute_block(stmt.statements, Environment(self.environment))
@@ -142,14 +173,10 @@ class Interpreter(ExprVisitor[Any], StmtVisitor[None]):
         stmt.accept(self)
 
     def _evaluate(self, expr: Expr) -> Any:
-        """Helper method to evaluate an expression."""
         return expr.accept(self)
 
     def _is_truthy(self, obj: Any) -> bool:
-        """
-        Determine the truthiness of a value.
-        None and False are falsey, everything else is truthy.
-        """
+        # None and False are falsey, everything else is truthy.
         if obj is None:
             return False
         if isinstance(obj, bool):
@@ -157,10 +184,7 @@ class Interpreter(ExprVisitor[Any], StmtVisitor[None]):
         return True
 
     def _is_equal(self, a: Any, b: Any) -> bool:
-        """
-        Check equality of two values.
-        None is only equal to None.
-        """
+        # None is only equal to None
         if a is None and b is None:
             return True
         if a is None:
@@ -168,19 +192,16 @@ class Interpreter(ExprVisitor[Any], StmtVisitor[None]):
         return a == b
 
     def _check_number_operand(self, operator: Token, operand: Any) -> None:
-        """Verify that an operand is a number."""
         if isinstance(operand, float):
             return
         raise RuntimeError(operator, "Operand must be a number.")
 
     def _check_number_operands(self, operator: Token, left: Any, right: Any) -> None:
-        """Verify that both operands are numbers."""
         if isinstance(left, float) and isinstance(right, float):
             return
         raise RuntimeError(operator, "Operands must be numbers.")
 
     def _stringify(self, obj: None | float | bool | str) -> str:
-        """Convert a Python value to a Lox value string representation."""
         if obj is None:
             return "nil"
 

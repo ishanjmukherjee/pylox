@@ -7,6 +7,7 @@ from lox.token import Token
 R = TypeVar("R")
 
 
+# Jupiter; the Platonic ideal to inherit from
 class Expr(ABC):
     @abstractmethod
     def accept(self, visitor: "ExprVisitor[R]") -> R:
@@ -20,7 +21,19 @@ class Binary(Expr):
         self.right = right
 
     def accept(self, visitor: "ExprVisitor[R]") -> R:
+        # Every accept() method has the same story:
+        # visitor.visit_relevant_expr()
         return visitor.visit_binary(self)
+
+
+class Logical(Expr):
+    def __init__(self, left: Expr, operator: Token, right: Expr):
+        self.left = left
+        self.operator = operator
+        self.right = right
+
+    def accept(self, visitor: "ExprVisitor[R]") -> R:
+        return visitor.visit_logical(self)
 
 
 class Grouping(Expr):

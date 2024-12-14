@@ -1,0 +1,7 @@
+var age = 16;
+var nationality = "French";
+if (age < 18 and nationality == "American") {
+    print "No drinking";
+} else {
+    print "Yay drinking";
+}
