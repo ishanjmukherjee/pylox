@@ -23,6 +23,16 @@ class Binary(Expr):
         return visitor.visit_binary(self)
 
 
+class Logical(Expr):
+    def __init__(self, left: Expr, operator: Token, right: Expr):
+        self.left = left
+        self.operator = operator
+        self.right = right
+
+    def accept(self, visitor: "ExprVisitor[R]") -> R:
+        return visitor.visit_logical(self)
+
+
 class Grouping(Expr):
     def __init__(self, expression: Expr):
         self.expression = expression

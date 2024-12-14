@@ -1,7 +1,7 @@
 from typing import List, Optional
 
-from lox.expr import Assign, Binary, Expr, Grouping, Literal, Unary, Variable
-from lox.stmt import Block, Expression, Print, Stmt, Var
+from lox.expr import Assign, Binary, Expr, Grouping, Literal, Logical, Unary, Variable
+from lox.stmt import Block, Expression, If, Print, Stmt, Var
 from lox.token import Token
 from lox.token_type import TokenType
 
@@ -28,6 +28,9 @@ class Parser:
     printStmt   -> "print" expression ";" ;
 
     expression  -> assignment ;
+    assignment  -> IDENTIFIER "=" assignment | logic_or ;
+    logic_or    -> logic_and ( "or" logic_and )* ;
+    logic_and   -> equality ( "and" equality)* ;
     equality    -> comparison ( ( "!=" | "==" ) comparison )* ;
     comparison  -> term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
     term        -> factor ( ( "-" | "+" ) factor )* ;
@@ -96,6 +99,9 @@ class Parser:
     def statement(self) -> Stmt:
         """Parse a statement."""
         # Statements are either...
+        # ... if...
+        if self.match(TokenType.IF):
+            return self.if_statement()
         # ... print...
         if self.match(TokenType.PRINT):
             return self.print_statement()
@@ -104,6 +110,17 @@ class Parser:
             return Block(self.block())
         # ... or expression
         return self.expression_statement()
+
+    def if_statement(self) -> Stmt:
+        """Parse an if statement."""
+        self.consume(TokenType.LEFT_PAREN, "Expect '(' after 'if'.")
+        condition = self.expression()
+        self.consume(TokenType.RIGHT_PAREN, "Expect ')' after if condition.")
+
+        then_branch = self.statement()
+        else_branch = self.statement() if self.match(TokenType.ELSE) else None
+
+        return If(condition, then_branch, else_branch)
 
     def print_statement(self) -> Stmt:
         """Parse a print statement."""
@@ -133,7 +150,7 @@ class Parser:
 
     def assignment(self) -> Expr:
         """Parse an assignment expression."""
-        expr = self.equality()
+        expr = self.logical_or()
 
         if self.match(TokenType.EQUAL):
             equals = self.previous()
@@ -144,6 +161,31 @@ class Parser:
                 return Assign(name, value)
 
             self.error(equals, "Invalid assignment target.")
+
+        return expr
+
+    def logical_or(self) -> Expr:
+        """Parse a logical or expression (or)."""
+        # Do you notice this method's tasteful naming divergence from the book,
+        # which has a bare "or", in order to avoid shadowing Python's built-in
+        # or?
+        expr = self.logical_and()
+
+        while self.match(TokenType.OR):
+            op = self.previous()
+            right = self.logical_and()
+            expr = Logical(expr, op, right)
+
+        return expr
+
+    def logical_and(self) -> Expr:
+        """Parse a logical and expression (and)."""
+        expr = self.equality()
+
+        while self.match(TokenType.AND):
+            op = self.previous()
+            right = self.equality()
+            expr = Logical(expr, op, right)
 
         return expr
 

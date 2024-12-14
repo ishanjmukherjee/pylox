@@ -8,10 +8,11 @@ from lox.expr import (
     ExprVisitor,
     Grouping,
     Literal,
+    Logical,
     Unary,
     Variable,
 )
-from lox.stmt import Block, Expression, Print, Stmt, StmtVisitor, Var
+from lox.stmt import Block, Expression, If, Print, Stmt, StmtVisitor, Var
 from lox.token import Token
 from lox.token_type import TokenType
 
@@ -42,6 +43,25 @@ class Interpreter(ExprVisitor[Any], StmtVisitor[None]):
     def visit_literal(self, expr: Literal) -> Any:
         """Return the literal's value directly."""
         return expr.value
+
+    def visit_logical(self, expr: Logical) -> Any:
+        """Evaluate logical expressions (or, and)."""
+        left = self._evaluate(expr.left)
+
+        # Short circuiting logic
+        # Return the last value the program actually evaluates. Examples:
+        # OR: if left is true, right no longer needs to be evaluated, and left
+        # is returned
+        # AND: if left is false, right no longer needs to be evaluated, and left
+        # is returned
+        if expr.operator.type == TokenType.OR:
+            if self._is_truthy(left):
+                return left
+        else:  # TokenType.AND
+            if not self._is_truthy(left):
+                return left
+
+        return self._evaluate(expr.right)
 
     def visit_grouping(self, expr: Grouping) -> Any:
         """Evaluate the expression inside the grouping."""
@@ -115,6 +135,13 @@ class Interpreter(ExprVisitor[Any], StmtVisitor[None]):
 
     def visit_expression_stmt(self, stmt: Expression) -> None:
         self._evaluate(stmt.expression)
+
+    def visit_if_stmt(self, stmt: If) -> None:
+        if self._is_truthy(self._evaluate(stmt.condition)):
+            self._execute(stmt.then_branch)
+        elif stmt.else_branch is not None:
+            self._execute(stmt.else_branch)
+        return None
 
     def visit_print_stmt(self, stmt: Print) -> None:
         value = self._evaluate(stmt.expression)

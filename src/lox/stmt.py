@@ -29,6 +29,16 @@ class Print(Stmt):
         return visitor.visit_print_stmt(self)
 
 
+class If(Stmt):
+    def __init__(self, condition: Expr, then_branch: Stmt, else_branch: Stmt):
+        self.condition = condition
+        self.else_branch = else_branch
+        self.then_branch = then_branch
+
+    def accept(self, visitor: "StmtVisitor[R]") -> R:
+        return visitor.visit_if_stmt(self)
+
+
 class Var(Stmt):
     def __init__(self, name: Token, initializer: Expr | None):
         self.name = name
