@@ -23,40 +23,39 @@ class Lox:
     # error state had_error
     @classmethod
     def error(cls, line: int, message: str) -> None:
-        """ "Report a basic syntax error with line number but no additional
-        context.
-
-        Args:
-            line: Line number where the error occurred
-            message: Description of the error"""
+        """
+        Report basic syntax error with line number but no additional context.
+        """
         cls.report(line, "", message)
 
     @classmethod
     def runtime_error(cls, error: RuntimeError) -> None:
-        """Report a runtime error with line number information."""
+        """Report runtime error with line number information."""
         print(f"{error}\n[line {error.token.line}]", file=sys.stderr)
         cls.had_runtime_error = True
 
     @classmethod
     def report(cls, line: int, where: str, message: str) -> None:
-        """Print error to stderr and set error flag.
-
-        All error reporting goes through this method to ensure consistent
-        presentation across the interpreter. Uses stderr for unbuffered output,
-        ensuring errors appear immediately even if the program crashes, and
-        enabling terminal-specific formatting like red text.
+        """
+        Print error to stderr and set error flag.
 
         Args:
-            line: Line number where the error occurred
+            line
             where: Additional context about error location (e.g. "in function
             declaration")
-            message: Description of the error"""
+            message
+        """
+        # Use stderr for unbuffered output, ensuring errors appear immediately
+        # even if the program crashes, and enabling terminal-specific formatting
+        # like red text.
+        # All error reporting goes through this method to ensure consistent
+        # presentation across the interpreter.
         print(f"[line {line}] Error{where}: {message}", file=sys.stderr)
         cls.had_error = True
 
 
 def run_file(path: str) -> None:
-    """Execute a Lox script from a file."""
+    """Execute Lox script from a file."""
     try:
         source = Path(path).read_text(encoding="utf-8")
         run(source)
@@ -69,7 +68,7 @@ def run_file(path: str) -> None:
 
 
 def run_prompt() -> None:
-    """Run an interactive prompt (REPL) for the Lox interpreter."""
+    """Run interactive prompt (REPL)."""
     while True:
         try:
             line = input("> ")

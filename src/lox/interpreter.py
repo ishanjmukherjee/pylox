@@ -173,14 +173,10 @@ class Interpreter(ExprVisitor[Any], StmtVisitor[None]):
         stmt.accept(self)
 
     def _evaluate(self, expr: Expr) -> Any:
-        """Helper method to evaluate an expression."""
         return expr.accept(self)
 
     def _is_truthy(self, obj: Any) -> bool:
-        """
-        Determine the truthiness of a value.
-        None and False are falsey, everything else is truthy.
-        """
+        # None and False are falsey, everything else is truthy.
         if obj is None:
             return False
         if isinstance(obj, bool):
@@ -188,10 +184,7 @@ class Interpreter(ExprVisitor[Any], StmtVisitor[None]):
         return True
 
     def _is_equal(self, a: Any, b: Any) -> bool:
-        """
-        Check equality of two values.
-        None is only equal to None.
-        """
+        # None is only equal to None
         if a is None and b is None:
             return True
         if a is None:
@@ -199,19 +192,16 @@ class Interpreter(ExprVisitor[Any], StmtVisitor[None]):
         return a == b
 
     def _check_number_operand(self, operator: Token, operand: Any) -> None:
-        """Verify that an operand is a number."""
         if isinstance(operand, float):
             return
         raise RuntimeError(operator, "Operand must be a number.")
 
     def _check_number_operands(self, operator: Token, left: Any, right: Any) -> None:
-        """Verify that both operands are numbers."""
         if isinstance(left, float) and isinstance(right, float):
             return
         raise RuntimeError(operator, "Operands must be numbers.")
 
     def _stringify(self, obj: None | float | bool | str) -> str:
-        """Convert a Python value to a Lox value string representation."""
         if obj is None:
             return "nil"
 

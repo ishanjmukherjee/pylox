@@ -10,8 +10,6 @@ from enum import Enum, auto, unique
 # than implicit." See https://peps.python.org/pep-0020/.
 @unique
 class TokenType(Enum):
-    """Token types for the Lox language."""
-
     # Single-character tokens
     # Use auto() for automatic value assignment, see
     # https://docs.python.org/3/library/enum.html#enum.auto.

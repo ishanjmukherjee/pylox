@@ -100,6 +100,8 @@ class Scanner:
             case '"':
                 self._string()
             case _:
+                # isdigit() does not work since (sub/super)scripted numbers fly
+                # through it.
                 if "0" <= c <= "9":
                     self._number()
                 elif c.isalpha() or c == "_":
